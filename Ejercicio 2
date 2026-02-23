@@ -1,0 +1,147 @@
+# -- coding: utf-8 --
+import numpy as np
+import matplotlib
+matplotlib.use('TkAgg')   # Fuerza ventana externa
+import matplotlib.pyplot as plt
+
+# ---------- Función original ----------
+def f(x):
+    return np.exp(x) - 4*x
+
+# ---------- Función g(x) elegida ----------
+def g(x):
+    return np.exp(x) / 4
+
+# ---------- Derivada de g(x) ----------
+def g_prime(x):
+    return np.exp(x) / 4
+
+# ---------- Errores ----------
+def error_absoluto(x_new, x_old):
+    return abs(x_new - x_old)
+
+def error_relativo(x_new, x_old):
+    return abs((x_new - x_old) / x_new) if x_new != 0 else np.inf
+
+def error_cuadratico(x_new, x_old):
+    return (x_new - x_old)**2
+
+# ---------- Método de Punto Fijo ----------
+def punto_fijo(x0, tol=1e-5, max_iter=100):
+    iteraciones = []
+    errores_abs, errores_rel, errores_cuad = [], [], []
+
+    x_old = x0
+    for i in range(max_iter):
+        x_new = g(x_old)
+
+        e_abs = error_absoluto(x_new, x_old)
+        e_rel = error_relativo(x_new, x_old)
+        e_cuad = error_cuadratico(x_new, x_old)
+        fx = f(x_new)
+        gpx = g_prime(x_new)
+
+        iteraciones.append((i+1, x_new, fx, e_abs, e_rel, e_cuad, gpx))
+        errores_abs.append(e_abs)
+        errores_rel.append(e_rel)
+        errores_cuad.append(e_cuad)
+
+        if (e_abs < tol) or (abs(fx) < tol):
+            break
+
+        x_old = x_new
+
+    return iteraciones, errores_abs, errores_rel, errores_cuad
+
+
+# ---------- Parámetros ----------
+x0 = 1.0
+tol = 1e-5
+
+iteraciones, errores_abs, errores_rel, errores_cuad = punto_fijo(x0, tol=tol)
+
+# ---------- Tabla ----------
+print("Iter | x_n | f(x_n) | Error abs | Error rel | Error cuad | |g'(x_n)|")
+print("-" * 110)
+
+tabla = []
+
+for it in iteraciones:
+    i, xn, fxn, eabs, erel, ecuad, gpx = it
+    row = f"{i:4d} | {xn:13.8f} | {fxn:13.6e} | {eabs:13.6e} | {erel:13.6e} | {ecuad:13.6e} | {abs(gpx):10.6f}"
+    print(row)
+    tabla.append([i, xn, fxn, eabs, erel, ecuad, abs(gpx)])
+
+# ==========================================================
+# FIGURA COMPLETA (TODO EN UNA SOLA IMAGEN)
+# ==========================================================
+
+fig, ax = plt.subplots(2, 2, figsize=(16, 10))
+
+# ---------- Panel 1: Convergencia ----------
+x_vals = np.linspace(-1, 2, 400)
+y_vals = g(x_vals)
+
+ax[0,0].plot(x_vals, y_vals, label=r"$g(x)=\frac{e^x}{4}$")
+ax[0,0].plot(x_vals, x_vals, linestyle="--", label="y = x")
+
+x_points = [it[1] for it in iteraciones]
+y_points = [g(x) for x in x_points]
+
+ax[0,0].scatter(x_points, y_points)
+ax[0,0].plot(x_points, y_points, linestyle="dotted", label="Iteraciones")
+
+ax[0,0].set_title("Convergencia (Ejercicio 2)")
+ax[0,0].grid(True)
+ax[0,0].legend()
+
+# ---------- Panel 2: Función original ----------
+xf = np.linspace(-1, 2, 500)
+ax[0,1].axhline(0)
+ax[0,1].plot(xf, f(xf), label=r"$f(x)=e^x - 4x$")
+raiz = x_points[-1]
+ax[0,1].axvline(raiz, linestyle="--", label=f"Raíz ≈ {raiz:.6f}")
+
+ax[0,1].set_title("Función Original")
+ax[0,1].grid(True)
+ax[0,1].legend()
+
+# ---------- Panel 3: Errores ----------
+ax[1,0].plot(range(1,len(errores_abs)+1), errores_abs, marker="o", label="Error abs")
+ax[1,0].plot(range(1,len(errores_rel)+1), errores_rel, marker="s", label="Error rel")
+ax[1,0].plot(range(1,len(errores_cuad)+1), errores_cuad, marker="^", label="Error cuad")
+
+ax[1,0].set_yscale("log")
+ax[1,0].set_title("Evolución de Errores")
+ax[1,0].grid(True, which="both")
+ax[1,0].legend()
+
+# ---------- Panel 4: Tabla ----------
+ax[1,1].axis("off")
+
+col_labels = ["Iter","x_n","f(x_n)","E_abs","E_rel","E_cuad","|g'|"]
+
+tabla_redondeada = [
+    [fila[0],
+     f"{fila[1]:.6f}",
+     f"{fila[2]:.2e}",
+     f"{fila[3]:.2e}",
+     f"{fila[4]:.2e}",
+     f"{fila[5]:.2e}",
+     f"{fila[6]:.6f}"]
+    for fila in tabla
+]
+
+t = ax[1,1].table(cellText=tabla_redondeada,
+                  colLabels=col_labels,
+                  loc="center",
+                  cellLoc="center")
+
+t.auto_set_font_size(False)
+t.set_fontsize(8)
+t.scale(1,1.3)
+
+ax[1,1].set_title("Tabla de Iteraciones")
+
+plt.tight_layout()
+plt.show()
