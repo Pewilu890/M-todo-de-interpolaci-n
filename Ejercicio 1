@@ -1,0 +1,155 @@
+# -- coding: utf-8 --
+"""
+Ejercicio 1
+Determina la raíz de f(x) = x^3 - 6x^2 + 11x - 6 en [1, 3]
+utilizando interpolación de Lagrange con tres nodos.
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use('TkAgg')   # Fuerza ventana externa
+import matplotlib.pyplot as plt
+
+# ---------- Problema ----------
+def f(x):
+    return x**3 - 6*x**2 + 11*x - 6
+
+A, B = 1.0, 3.0
+
+# ---------- Nodos (evitan 1,2,3 que son raíces) ----------
+X_NODOS = [1.2, 1.8, 2.6]
+
+# ---------- Interpolación de Lagrange ----------
+def lagrange_eval(x, x_nodos, y_nodos):
+    n = len(x_nodos)
+    acc = 0.0
+    for i in range(n):
+        term = y_nodos[i]
+        for j in range(n):
+            if i != j:
+                term *= (x - x_nodos[j])/(x_nodos[i] - x_nodos[j])
+        acc += term
+    return acc
+
+# ---------- Bisección ----------
+def bisect(g, a, b, tol=1e-12, max_iter=200):
+    fa, fb = g(a), g(b)
+    if fa * fb > 0:
+        raise ValueError("El intervalo no presenta cambio de signo.")
+    
+    hist = []
+    for k in range(1, max_iter+1):
+        c = 0.5*(a+b)
+        gc = g(c)
+        hist.append({"iter":k, "a":a, "b":b, "c":c, "g(c)":gc, "width":b-a})
+        
+        if abs(gc) < tol or 0.5*(b-a) < tol:
+            return c, hist
+        
+        if fa * gc < 0:
+            b, fb = c, gc
+        else:
+            a, fa = c, gc
+            
+    return 0.5*(a+b), hist
+
+# ---------- Raíz real de referencia ----------
+rf, _ = bisect(f, 1.0, 2.0, tol=1e-15)
+
+# ---------- Construcción del interpolador ----------
+x_nodos = np.array(X_NODOS, float)
+y_nodos = np.array([f(x) for x in x_nodos], float)
+P = lambda x: lagrange_eval(x, x_nodos, y_nodos)
+
+# ---------- Encontrar raíz de P ----------
+xs = np.linspace(A, B, 4001)
+ys = np.array([P(x) for x in xs])
+
+left = right = None
+for i in range(len(xs)-1):
+    if ys[i]*ys[i+1] < 0:
+        left, right = xs[i], xs[i+1]
+        break
+
+if left is None:
+    raise RuntimeError("No se encontró cambio de signo para P(x).")
+
+rP, histP = bisect(P, left, right)
+
+# ---------- Construcción de tabla ----------
+rows = []
+for rec in histP:
+    ck = rec['c']
+    abs_err = abs(ck - rf)
+    rel_err = abs_err/(abs(rf) if rf != 0 else 1.0)
+    sq_err = abs_err**2
+
+    rows.append([
+        rec['iter'],
+        rec['a'],
+        rec['b'],
+        ck,
+        rec['g(c)'],
+        abs_err,
+        rel_err,
+        sq_err
+    ])
+
+df = pd.DataFrame(rows, columns=[
+    "Iter","a","b","c","P(c)",
+    "Error_abs","Error_rel","Error_cuad"
+])
+
+# ==========================================================
+# FIGURA COMPLETA (4 PANEL)
+# ==========================================================
+
+fig, ax = plt.subplots(2,2, figsize=(16,10))
+
+# ---- Panel 1: f vs P ----
+xplot = np.linspace(A, B, 800)
+ax[0,0].plot(xplot, f(xplot), 'b--', label='f(x)')
+ax[0,0].plot(xplot, [P(x) for x in xplot], 'r-', label='P(x)')
+ax[0,0].axhline(0,color='k')
+ax[0,0].axvline(rf,color='purple',ls=':',label=f"raíz f≈{rf:.6f}")
+ax[0,0].axvline(rP,color='green',ls='--',label=f"raíz P≈{rP:.6f}")
+ax[0,0].scatter(x_nodos, y_nodos, c='black')
+ax[0,0].set_title("f(x) vs P(x)")
+ax[0,0].grid(True)
+ax[0,0].legend()
+
+# ---- Panel 2: Convergencia ----
+ax[0,1].semilogy(df["Iter"], df["Error_abs"], 'o-', label='|c_k - r_f|')
+ax[0,1].semilogy(df["Iter"], np.abs(df["P(c)"]), 's--', label='|P(c_k)|')
+ax[0,1].set_title("Convergencia")
+ax[0,1].grid(True, which='both')
+ax[0,1].legend()
+
+# ---- Panel 3: Errores ----
+ax[1,0].plot(df["Iter"], df["Error_abs"], 'o-', label='Absoluto')
+ax[1,0].plot(df["Iter"], df["Error_rel"], 's--', label='Relativo')
+ax[1,0].plot(df["Iter"], df["Error_cuad"], 'd-.', label='Cuadrático')
+ax[1,0].set_yscale('log')
+ax[1,0].set_title("Errores")
+ax[1,0].grid(True, which='both')
+ax[1,0].legend()
+
+# ---- Panel 4: Tabla ----
+ax[1,1].axis('off')
+
+tabla = ax[1,1].table(
+    cellText=np.round(df.values,6),
+    colLabels=df.columns,
+    loc='center',
+    cellLoc='center'
+)
+
+tabla.auto_set_font_size(False)
+tabla.set_fontsize(7)
+tabla.scale(1,1.2)
+
+ax[1,1].set_title("Tabla de Iteraciones")
+
+plt.tight_layout()
+plt.show()
